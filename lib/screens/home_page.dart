@@ -5,39 +5,73 @@ import 'package:news_app/screens/news_detail_page.dart';
 import 'package:news_app/services/services.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({Key? key}) : super(key: key);
+  HomePage({Key? key}) : super(key: key);
+
+  final List<String> tabs = ['Apple', 'Tesla', 'Techcrunch'];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Apple News'),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<NewsModel>?>(
-          future: ApiServices.fetchAllNews(categoryName: 'apple'),
-          builder: (context, snapshot) {
-            final List<NewsModel>? newsModelList = snapshot.data;
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
-            }
-            if (newsModelList != null) {
-              return newsModelList.isEmpty
-                  ? const Center(
-                      child: Text('No News'),
-                    )
-                  : ListView.builder(
-                      itemCount: newsModelList.length,
-                      itemBuilder: (context, index) {
-                        final NewsModel newsModel = newsModelList[index];
-                        return _buildSingleTileNews(context, newsModel);
-                      },
-                    );
-            }
-            return const SizedBox.shrink();
-          },
+    return DefaultTabController(
+      length: tabs.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Flutter News'),
+          centerTitle: true,
+          bottom: TabBar(
+            tabs: tabs
+                .map(
+                  (tab) => Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(tab),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        body: TabBarView(
+          children: tabs.map((tab) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                await Future.delayed(
+                  const Duration(seconds: 2),
+                  () {
+                    // setState(() {});
+                  },
+                );
+              },
+              child: SafeArea(
+                child: FutureBuilder<List<NewsModel>?>(
+                  future: tab == 'Techcrunch'
+                      ? ApiServices.fetchAllNewsWithSource(source: tab.toLowerCase())
+                      : ApiServices.fetchAllNews(
+                          categoryName: tab.toLowerCase(),
+                        ),
+                  builder: (context, snapshot) {
+                    final List<NewsModel>? newsModelList = snapshot.data;
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+                    if (newsModelList != null) {
+                      return newsModelList.isEmpty
+                          ? const Center(
+                              child: Text('No News'),
+                            )
+                          : ListView.builder(
+                              itemCount: newsModelList.length,
+                              itemBuilder: (context, index) {
+                                final NewsModel newsModel = newsModelList[index];
+                                return _buildSingleTileNews(context, newsModel);
+                              },
+                            );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

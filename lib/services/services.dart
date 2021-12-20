@@ -16,4 +16,16 @@ class ApiServices {
       debugPrint("Error during fetching news data :$err");
     }
   }
+
+  static Future<List<NewsModel>?> fetchAllNewsWithSource({required String source}) async {
+    final String url = "https://newsapi.org/v2/top-headlines?sources=$source&apiKey=${Config.apiKey}";
+    try {
+      final Response response = await _dio.get(url);
+      final data = response.data['articles'] as List<dynamic>;
+      final List<NewsModel> newsListModel = data.map((newsModel) => NewsModel.fromMap(newsModel)).toList();
+      return newsListModel;
+    } catch (err) {
+      debugPrint("Error during fetching news data :$err");
+    }
+  }
 }
