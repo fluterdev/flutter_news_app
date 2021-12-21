@@ -1,13 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:news_app/model/news_model.dart';
+import 'package:news_app/news_fetch_cubit/news_fetch_cubit.dart';
 import 'package:news_app/screens/news_detail_page.dart';
-import 'package:news_app/services/services.dart';
 
-class HomePage extends StatelessWidget {
-  HomePage({Key? key}) : super(key: key);
+class HomePage extends StatefulWidget {
+  const HomePage({Key? key}) : super(key: key);
 
-  final List<String> tabs = ['Apple', 'Tesla', 'Techcrunch'];
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+  late TabController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    //initially fetching apple news
+    BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: 'apple');
+
+    //initializing the tab controller
+    _controller = TabController(length: tabs.length, vsync: this);
+
+    //listening tabs on scroll and fetching news based on tabs
+    _controller.addListener(() {
+      if (_controller.index == 0) {
+        BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: 'apple');
+      } else if (_controller.index == 1) {
+        BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: 'tesla');
+      }
+    });
+  }
+
+  final List<String> tabs = ['Apple', 'Tesla'];
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +45,14 @@ class HomePage extends StatelessWidget {
           title: const Text('Flutter News'),
           centerTitle: true,
           bottom: TabBar(
+            controller: _controller,
+            onTap: (index) {
+              if (index == 0) {
+                BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: 'apple');
+              } else if (index == 1) {
+                BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: 'tesla');
+              }
+            },
             tabs: tabs
                 .map(
                   (tab) => Padding(
@@ -29,47 +64,77 @@ class HomePage extends StatelessWidget {
           ),
         ),
         body: TabBarView(
+          // physics: const NeverScrollableScrollPhysics(),
+          controller: _controller,
           children: tabs.map((tab) {
             return RefreshIndicator(
               onRefresh: () async {
                 await Future.delayed(
                   const Duration(seconds: 2),
                   () {
-                    // setState(() {});
+                    BlocProvider.of<NewsFetchCubit>(context).getNewsListFromApi(categoryName: tab.toLowerCase());
                   },
                 );
               },
-              child: SafeArea(
-                child: FutureBuilder<List<NewsModel>?>(
-                  future: tab == 'Techcrunch'
-                      ? ApiServices.fetchAllNewsWithSource(source: tab.toLowerCase())
-                      : ApiServices.fetchAllNews(
-                          categoryName: tab.toLowerCase(),
-                        ),
-                  builder: (context, snapshot) {
-                    final List<NewsModel>? newsModelList = snapshot.data;
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-                    if (newsModelList != null) {
-                      return newsModelList.isEmpty
-                          ? const Center(
-                              child: Text('No News'),
-                            )
-                          : ListView.builder(
-                              itemCount: newsModelList.length,
-                              itemBuilder: (context, index) {
-                                final NewsModel newsModel = newsModelList[index];
-                                return _buildSingleTileNews(context, newsModel);
-                              },
-                            );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
+              child: BlocBuilder<NewsFetchCubit, NewsFetchState>(
+                builder: (context, newsFetchState) {
+                  if (newsFetchState is NewsFetchLoading) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  } else if (newsFetchState is NewsFetchError) {
+                    return Center(
+                      child: Text(newsFetchState.error),
+                    );
+                  } else if (newsFetchState is NewsFetchLoaded) {
+                    final List<NewsModel> newsList = newsFetchState.newsModelList;
+                    return newsList.isEmpty
+                        ? const Center(
+                            child: Text('No news'),
+                          )
+                        : ListView.builder(
+                            itemCount: newsList.length,
+                            itemBuilder: (context, index) {
+                              final NewsModel newsModel = newsList[index];
+                              return _buildSingleTileNews(context, newsModel);
+                            },
+                          );
+                  }
+
+                  return const SizedBox.shrink();
+                },
               ),
+              // child: SafeArea(
+              //   child: FutureBuilder<List<NewsModel>?>(
+              //     future: tab == 'Techcrunch'
+              //         ? ApiServices.fetchAllNewsWithSource(source: tab.toLowerCase())
+              //         : ApiServices.fetchAllNews(
+              //             categoryName: tab.toLowerCase(),
+              //           ),
+              //     builder: (context, snapshot) {
+              //       final List<NewsModel>? newsModelList = snapshot.data;
+              //       if (snapshot.connectionState == ConnectionState.waiting) {
+              //         return const Center(
+              //           child: CircularProgressIndicator(),
+              //         );
+              //       }
+              //       if (newsModelList != null) {
+              //         return newsModelList.isEmpty
+              //             ? const Center(
+              //                 child: Text('No News'),
+              //               )
+              //             : ListView.builder(
+              //                 itemCount: newsModelList.length,
+              //                 itemBuilder: (context, index) {
+              //                   final NewsModel newsModel = newsModelList[index];
+              //                   return _buildSingleTileNews(context, newsModel);
+              //                 },
+              //               );
+              //       }
+              //       return const SizedBox.shrink();
+              //     },
+              //   ),
+              // ),
             );
           }).toList(),
         ),
@@ -113,6 +178,18 @@ class HomePage extends StatelessWidget {
                     child: CircularProgressIndicator(),
                   );
                 },
+                errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
+                  return const SizedBox(
+                    height: 100,
+                    width: 80,
+                    child: Center(
+                      child: Icon(
+                        Icons.error,
+                        color: Colors.red,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(width: 20),
@@ -140,33 +217,37 @@ class HomePage extends StatelessWidget {
                         color: Colors.grey,
                       ),
                       const SizedBox(width: 10),
-                      Row(
-                        children: [
-                          Text(
-                            formattedString,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.teal.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              newsModel.source?.name ?? "",
+                      Flexible(
+                        child: Row(
+                          children: [
+                            Text(
+                              formattedString,
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  newsModel.source?.name ?? "",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       )
                     ],
                   ),
